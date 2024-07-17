@@ -3,6 +3,8 @@ package ftp_server;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 
@@ -82,7 +84,10 @@ public class FTP_Server extends JFrame {
         JMenu fileMenu = new JMenu("File");
         JMenuItem exitMenuItem = new JMenuItem("Shut down");
         exitMenuItem.addActionListener(e -> shutdownServer());
+        JMenuItem restartMenuItem = new JMenuItem("Restart");
+        restartMenuItem.addActionListener(e -> restartServer());
         fileMenu.add(exitMenuItem);
+        fileMenu.add(restartMenuItem);
 
         JMenu helpMenu = new JMenu("Help");
         JMenuItem aboutMenuItem = new JMenuItem("About");
@@ -192,5 +197,44 @@ public class FTP_Server extends JFrame {
             System.exit(0);
         });
     }
-}
 
+    private void restartServer() {
+        SwingUtilities.invokeLater(() -> {
+            int response = JOptionPane.showConfirmDialog(this,
+                    "Do you want to restart the server?",
+                    "Restart Server",
+                    JOptionPane.YES_NO_OPTION);
+
+            if (response == JOptionPane.YES_OPTION) {
+                executorService.submit(() -> {
+                    serverBackend.shutdownThreadPool();
+                    serverBackend.shutdownServerSocket();
+                    FileHandler.deleteTempDirectory(tempDirectory);
+                    appendToConsole("Server restarting...");
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    // Restart the server
+                    String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+                    File currentJar = new File(FTP_Server.class.getProtectionDomain().getCodeSource().getLocation().getPath());
+
+                    /* Build command: java -jar application.jar */
+                    ArrayList<String> command = new ArrayList<>();
+                    command.add(javaBin);
+                    command.add("-jar");
+                    command.add(currentJar.getPath());
+
+                    ProcessBuilder builder = new ProcessBuilder(command);
+                    try {
+                        builder.start();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    System.exit(0);
+                });
+            }
+        });
+    }
+}

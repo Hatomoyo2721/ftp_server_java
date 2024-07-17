@@ -17,7 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.text.SimpleDateFormat;
-
+import java.util.ArrayList;
 
 public class FTPServerBackend {
 
@@ -154,13 +154,15 @@ public class FTPServerBackend {
             File[] files = userDirectory.listFiles();
             if (files != null) {
                 dataOutputStream.writeInt(0);
-                dataOutputStream.writeInt(files.length);
-
+                dataOutputStream.flush();
+                
+                ArrayList<FileModel> fileModels = new ArrayList<FileModel>();
                 for (File file : files) {
-                    dataOutputStream.writeUTF(file.getName());
-                    dataOutputStream.writeBoolean(file.isDirectory());
+                    String filePath = file.getPath().replace("\\", "/");
+                    FileModel fileModel = new FileModel(file.getName(), file.isDirectory() ? FileModel.TYPE_DIRECTORY : FileModel.TYPE_FILE, filePath);
+                    fileModels.add(fileModel);
                 }
-
+                dataOutputStream.writeUTF(new Gson().toJson(fileModels));
                 dataOutputStream.flush();
                 serverGUI.appendToConsole(getCurrentTime() + "Directory data sent to client: " + username + "\n");
             } else {
@@ -204,7 +206,7 @@ public class FTPServerBackend {
             insertStmt.setString(4, connection.getUsername());
             insertStmt.setString(5, connection.getPassword());
             insertStmt.setString(6, connection.getEmail());
-            
+
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
             String currentDate = dateFormat.format(new Date());
 
