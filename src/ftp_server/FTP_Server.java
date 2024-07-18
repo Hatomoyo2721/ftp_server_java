@@ -166,7 +166,7 @@ public class FTP_Server extends JFrame {
     @Override
     public void dispose() {
         super.dispose();
-        serverBackend.shutdownThreadPool();
+        serverBackend.stopServer();
         FileHandler.deleteTempDirectory(tempDirectory);
     }
 
@@ -185,8 +185,7 @@ public class FTP_Server extends JFrame {
 
     private void initiateShutdown() {
         executorService.submit(() -> {
-            serverBackend.shutdownThreadPool();
-            serverBackend.shutdownServerSocket();
+            serverBackend.stopServer();
             FileHandler.deleteTempDirectory(tempDirectory);
             appendToConsole("Server shutting down...");
             try {
@@ -207,8 +206,7 @@ public class FTP_Server extends JFrame {
 
             if (response == JOptionPane.YES_OPTION) {
                 executorService.submit(() -> {
-                    serverBackend.shutdownThreadPool();
-                    serverBackend.shutdownServerSocket();
+                    serverBackend.stopServer();
                     FileHandler.deleteTempDirectory(tempDirectory);
                     appendToConsole("Server restarting...");
                     try {

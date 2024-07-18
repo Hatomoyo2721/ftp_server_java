@@ -87,7 +87,7 @@ public class FTPServerBackend {
                     } else if ("CONNECTION".equals(type)) {
                         String json = dataInputStream.readUTF();
                         Connection_Model connection = new Gson().fromJson(json, Connection_Model.class);
-                        boolean userExists = saveConnectionToSQLite(connection);
+                        boolean userExists = saveConnectionToMySQL(connection);
                         if (userExists) {
                             dataOutputStream.writeUTF("USER_EXISTS");
                             dataOutputStream.flush();
@@ -155,7 +155,7 @@ public class FTPServerBackend {
             if (files != null) {
                 dataOutputStream.writeInt(0);
                 dataOutputStream.flush();
-                
+
                 ArrayList<FileModel> fileModels = new ArrayList<FileModel>();
                 for (File file : files) {
                     String filePath = file.getPath().replace("\\", "/");
@@ -190,7 +190,7 @@ public class FTPServerBackend {
         }
     }
 
-    private boolean saveConnectionToSQLite(Connection_Model connection) {
+    private boolean saveConnectionToMySQL(Connection_Model connection) {
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections(id, ip_address, port, username, password, email, creation_date) VALUES(?,?,?,?,?,?,?)")) {
             checkStmt.setString(1, connection.getUsername());
             try (ResultSet rs = checkStmt.executeQuery()) {
@@ -227,29 +227,16 @@ public class FTPServerBackend {
         }
     }
 
-    public void shutdownThreadPool() {
-        threadPool.shutdown();
+    public void stopServer() {
         try {
+            serverSocket.close();
+            threadPool.shutdown();
             if (!threadPool.awaitTermination(60, TimeUnit.SECONDS)) {
                 threadPool.shutdownNow();
-                if (!threadPool.awaitTermination(60, TimeUnit.SECONDS)) {
-                    serverGUI.appendToConsole(getCurrentTime() + "Thread pool did not terminate");
-                }
             }
-        } catch (InterruptedException ie) {
-            threadPool.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    public void shutdownServerSocket() {
-        try {
-            if (serverSocket != null && !serverSocket.isClosed()) {
-                serverSocket.close();
-                serverGUI.appendToConsole(getCurrentTime() + "Server socket closed.");
-            }
-        } catch (IOException e) {
-            serverGUI.appendToConsole(getCurrentTime() + "Error closing server socket: " + e.getMessage());
+            serverGUI.appendToConsole(getCurrentTime() + "Server stopped\n");
+        } catch (IOException | InterruptedException e) {
+            serverGUI.appendToConsole(getCurrentTime() + "Error stopping server: " + e.getMessage() + "\n");
         }
     }
 
