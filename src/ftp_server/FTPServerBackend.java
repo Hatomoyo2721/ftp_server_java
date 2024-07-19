@@ -257,7 +257,7 @@ public class FTPServerBackend {
     }
 
     private String getCurrentTime() {
-        return new SimpleDateFormat("[dd/MM/yyyy - hh:mm:ss:] ").format(new Date());
+        return new SimpleDateFormat("[dd/MM/yyyy - hh:mm:ss]: ").format(new Date());
     }
 
     public void stopServer() {
