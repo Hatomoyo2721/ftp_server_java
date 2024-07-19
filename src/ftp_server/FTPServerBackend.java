@@ -217,7 +217,7 @@ public class FTPServerBackend {
     }
 
     private boolean saveConnectionToMySQL(Connection_Model connection) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM ftp_connections WHERE username = ?"); PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO ftp_connections (username, email, password) VALUES (?, ?, ?)")) {
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections (username, email, password) VALUES (?, ?, ?)")) {
 
             checkStmt.setString(1, connection.getUsername());
             ResultSet rs = checkStmt.executeQuery();
@@ -241,14 +241,14 @@ public class FTPServerBackend {
     }
 
     private boolean queryExistingUser(Connection_Model exist_connection) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM ftp_connections WHERE username = ? AND password = ?")) {
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ? AND password = ?")) {
             checkStmt.setString(1, exist_connection.getUsername());
             checkStmt.setString(2, exist_connection.getPassword());
 
             ResultSet rs = checkStmt.executeQuery();
             rs.next();
             int count = rs.getInt(1);
-            return count > 0;
+            return count > 0    ;
 
         } catch (SQLException e) {
             serverGUI.appendToConsole(getCurrentTime() + "Error querying existing user in MySQL: " + e.getMessage() + "\n");
