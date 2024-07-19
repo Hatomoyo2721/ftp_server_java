@@ -135,4 +135,18 @@ public class FileHandler {
             serverGUI.appendToConsole("Error opening file externally: " + e.getMessage() + "\n");
         }
     }
+
+    public static void sendFile(DataOutputStream dataOutputStream, File file, FTP_Server serverGUI) throws IOException {
+        dataOutputStream.writeLong(file.length());
+        dataOutputStream.flush();
+
+        try (BufferedInputStream bufferedInputStream = new BufferedInputStream(new FileInputStream(file))) {
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = bufferedInputStream.read(buffer)) != -1) {
+                dataOutputStream.write(buffer, 0, bytesRead);
+            }
+        }
+        serverGUI.appendToConsole("File sent: " + file.getName());
+    }
 }
