@@ -108,6 +108,9 @@ public class FTPServerBackend {
             case "DELETE_FILE_DIR_USER":
                 handleDeleteFileDirUser(dataInputStream, dataOutputStream);
                 break;
+            case "CREATE_NEW_DIR":
+                handleCreateNewDir(dataInputStream, dataOutputStream);
+                break;
 
             default:
                 serverGUI.appendToConsole(getCurrentTime() + "Unknown request from client. Closing connection.\n");
@@ -224,6 +227,29 @@ public class FTPServerBackend {
         } else {
             serverGUI.appendToConsole(getCurrentTime() + "File or directory not found: " + filePath);
         }
+        dataOutputStream.flush();
+    }
+
+    private void handleCreateNewDir(DataInputStream dataInputStream, DataOutputStream dataOutputStream) throws IOException {
+        String parentDirName = dataInputStream.readUTF();
+        String newDirName = dataInputStream.readUTF();
+        
+        File parentDir = new File("users_directories/" + parentDirName);
+        File newDir = new File(parentDir, newDirName);
+
+        if (parentDir.exists() && parentDir.isDirectory()) {
+            if (newDir.mkdir()) {
+                dataOutputStream.writeUTF("CREATE_SUCCESS");
+                serverGUI.appendToConsole(getCurrentTime() + "Directory created successfully: " + newDir);
+            } else {
+                dataOutputStream.writeUTF("CREATE_FAILED");
+                serverGUI.appendToConsole(getCurrentTime() + "Failed to create directory: " + newDir);
+            }
+        } else {
+            dataOutputStream.writeUTF("PARENT_DIR_NOT_FOUND");
+            serverGUI.appendToConsole(getCurrentTime() + "Parent directory not found: " + parentDir);
+        }
+
         dataOutputStream.flush();
     }
 
