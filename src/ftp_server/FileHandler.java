@@ -145,9 +145,8 @@ public class FileHandler {
             int bytesRead;
             while ((bytesRead = bufferedInputStream.read(buffer)) != -1) {
                 dataOutputStream.write(buffer, 0, bytesRead);
-                serverGUI.appendToConsole("Send " + bytesRead + " bytes");
             }
         }
-        serverGUI.appendToConsole("File sent: " + file.getName() + "\n");
+        serverGUI.appendToConsole("File sent: " + file.getName() + "\nSize: " + convertFileSize(file.length()) + "\n");
     }
 }

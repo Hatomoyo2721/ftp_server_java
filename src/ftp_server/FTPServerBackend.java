@@ -84,7 +84,7 @@ public class FTPServerBackend {
             case "SEND_FILE":
                 handleSendFile(dataInputStream, dataOutputStream, clientSocket);
                 break;
-            case "CONNECTION":
+            case "ADD_USER":
                 handleConnection(dataInputStream, dataOutputStream, clientSocket);
                 break;
             case "RELOAD_SERVER":
@@ -186,7 +186,7 @@ public class FTPServerBackend {
                     dataOutputStream.writeUTF("RENAME_SUCCESS");
                     serverGUI.appendToConsole(getCurrentTime() + "User changed file name: " + currentFile.getName() + " -> " + newFileName);
                 } else {
-                   //
+                    //
                 }
             } else {
                 //
@@ -195,8 +195,6 @@ public class FTPServerBackend {
             dataOutputStream.flush();
         } catch (IOException e) {
             e.printStackTrace();
-            dataOutputStream.writeUTF("RENAME_ERROR");
-            dataOutputStream.flush();
         } finally {
             if (clientSocket != null) {
                 clientSocket.close();
@@ -256,25 +254,34 @@ public class FTPServerBackend {
     }
 
     private boolean saveConnectionToMySQL(Connection_Model connection) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections (username, email, password) VALUES (?, ?, ?)")) {
-
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections(id, ip_address, port, username, password, email, creation_date) VALUES(?,?,?,?,?,?,?)")) {
             checkStmt.setString(1, connection.getUsername());
-            ResultSet rs = checkStmt.executeQuery();
-            rs.next();
-            int count = rs.getInt(1);
-
-            if (count > 0) {
-                return true;
+            try (ResultSet rs = checkStmt.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    serverGUI.appendToConsole(getCurrentTime() + "User already exists: " + connection.getUsername() + "\n");
+                    return true;
+                }
             }
 
-            insertStmt.setString(1, connection.getUsername());
-            insertStmt.setString(2, connection.getEmail());
-            insertStmt.setString(3, connection.getPassword());
+            insertStmt.setString(1, connection.getId());
+            insertStmt.setString(2, connection.getIpAddress());
+            insertStmt.setInt(3, connection.getPort());
+            insertStmt.setString(4, connection.getUsername());
+            insertStmt.setString(5, connection.getPassword());
+            insertStmt.setString(6, connection.getEmail());
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            String currentDate = dateFormat.format(new Date());
+            insertStmt.setString(7, currentDate);
             insertStmt.executeUpdate();
-            return false;
 
+            File userDirectory = new File("users_directories/" + connection.getUsername());
+            if (!userDirectory.exists()) {
+                userDirectory.mkdirs();
+            }
+            serverGUI.appendToConsole(getCurrentTime() + "Connection data saved to database: " + connection.getUsername());
+            return false; 
         } catch (SQLException e) {
-            serverGUI.appendToConsole(getCurrentTime() + "Error saving connection to MySQL: " + e.getMessage() + "\n");
+            serverGUI.appendToConsole(getCurrentTime() + "SQL error saving connection: " + e.getMessage());
             return false;
         }
     }
