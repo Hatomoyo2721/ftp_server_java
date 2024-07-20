@@ -99,6 +99,10 @@ public class FTPServerBackend {
             case "DOWNLOAD_FILE":
                 handleDownloadFile(dataInputStream, dataOutputStream, clientSocket);
                 break;
+            case "RENAME_FILE":
+                handleRenameFile(dataInputStream, dataOutputStream, clientSocket);
+                break;
+
             default:
                 serverGUI.appendToConsole(getCurrentTime() + "Unknown request from client. Closing connection.\n");
         }
@@ -163,6 +167,41 @@ public class FTPServerBackend {
                     + exist_connection.getUsername() + "\n");
         }
         dataOutputStream.flush();
+    }
+
+    private void handleRenameFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
+        try {
+            String currentFilePath = dataInputStream.readUTF();
+            String newFileName = dataInputStream.readUTF();
+
+            File currentFile = new File(currentFilePath);
+
+            if (currentFile.exists() && currentFile.isFile()) {
+                String parentDir = currentFile.getParent();
+                File newFile = new File(parentDir, newFileName);
+
+                boolean renameSuccess = currentFile.renameTo(newFile);
+
+                if (renameSuccess) {
+                    dataOutputStream.writeUTF("RENAME_SUCCESS");
+                    serverGUI.appendToConsole(getCurrentTime() + "User changed file name: " + currentFile.getName() + " -> " + newFileName);
+                } else {
+                   //
+                }
+            } else {
+                //
+            }
+
+            dataOutputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+            dataOutputStream.writeUTF("RENAME_ERROR");
+            dataOutputStream.flush();
+        } finally {
+            if (clientSocket != null) {
+                clientSocket.close();
+            }
+        }
     }
 
     private void handleDownloadFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
@@ -248,7 +287,7 @@ public class FTPServerBackend {
             ResultSet rs = checkStmt.executeQuery();
             rs.next();
             int count = rs.getInt(1);
-            return count > 0    ;
+            return count > 0;
 
         } catch (SQLException e) {
             serverGUI.appendToConsole(getCurrentTime() + "Error querying existing user in MySQL: " + e.getMessage() + "\n");
