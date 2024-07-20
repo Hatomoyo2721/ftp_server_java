@@ -85,7 +85,7 @@ public class FTPServerBackend {
                 handleSendFile(dataInputStream, dataOutputStream, clientSocket);
                 break;
             case "ADD_USER":
-                handleConnection(dataInputStream, dataOutputStream, clientSocket);
+                handleAddUser(dataInputStream, dataOutputStream, clientSocket);
                 break;
             case "RELOAD_SERVER":
                 handleReloadServer(clientSocket);
@@ -101,6 +101,12 @@ public class FTPServerBackend {
                 break;
             case "RENAME_FILE":
                 handleRenameFile(dataInputStream, dataOutputStream, clientSocket);
+                break;
+            case "UPLOAD_FILE_TO_DIR_USER":
+                handleUploadFileToDirUser(dataInputStream, dataOutputStream, clientSocket);
+                break;
+            case "DELETE_FILE_DIR_USER":
+                handleDeleteFileDirUser(dataInputStream, dataOutputStream);
                 break;
 
             default:
@@ -122,7 +128,7 @@ public class FTPServerBackend {
         }
     }
 
-    private void handleConnection(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
+    private void handleAddUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
         String json = dataInputStream.readUTF();
         Connection_Model connection = new Gson().fromJson(json, Connection_Model.class);
         boolean userExists = saveConnectionToMySQL(connection);
@@ -202,6 +208,25 @@ public class FTPServerBackend {
         }
     }
 
+    private void handleDeleteFileDirUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream) throws IOException {
+        String filePath = dataInputStream.readUTF();
+        File fileToDelete = new File(filePath);
+
+        if (fileToDelete.exists()) {
+            boolean deleteSuccess = fileToDelete.delete();
+            if (deleteSuccess) {
+                dataOutputStream.writeUTF("DELETE_SUCCESS");
+                serverGUI.appendToConsole(getCurrentTime() + "Deleted file or directory: " + filePath);
+            } else {
+                dataOutputStream.writeUTF("DELETE_FAILED");
+                serverGUI.appendToConsole(getCurrentTime() + "Failed to delete file or directory: " + filePath);
+            }
+        } else {
+            serverGUI.appendToConsole(getCurrentTime() + "File or directory not found: " + filePath);
+        }
+        dataOutputStream.flush();
+    }
+
     private void handleDownloadFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
         String fileName = dataInputStream.readUTF();
         String json = dataInputStream.readUTF();
@@ -222,9 +247,35 @@ public class FTPServerBackend {
             FileHandler.sendFile(dataOutputStream, fileToSend, serverGUI);
         } else {
             serverGUI.appendToConsole(getCurrentTime() + "File not found: " + fileName);
-            dataOutputStream.writeUTF("FILE_NOT_FOUND");
         }
         dataOutputStream.flush();
+    }
+
+    private void handleUploadFileToDirUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
+        String fileName = dataInputStream.readUTF();
+        String username = dataInputStream.readUTF();
+        serverGUI.appendToConsole(getCurrentTime() + "Receiving file: " + fileName
+                + "\nFrom user: " + username);
+
+        dataOutputStream.writeUTF("READY_TO_RECEIVE");
+        dataOutputStream.flush();
+
+        byte[] fileData = FileHandler.receiveFileToMemory(dataInputStream, dataOutputStream, fileName, serverGUI);
+        if (fileData != null) {
+            String userDirectoryPath = "users_directories/" + username;
+            File userDirectory = new File(userDirectoryPath);
+            if (!userDirectory.exists()) {
+                userDirectory.mkdirs();
+            }
+            File userFile = new File(userDirectory, fileName);
+            FileHandler.saveFileFromMemory(fileData, userFile, serverGUI);
+            serverGUI.appendToConsole(getCurrentTime() + "File received and saved to: " + userFile.getAbsolutePath());
+
+            dataOutputStream.writeUTF("UPLOAD_SUCCESS");
+            dataOutputStream.flush();
+        } else {
+            //
+        }
     }
 
     private void sendDirectoryListToClient(String username, DataOutputStream dataOutputStream) throws IOException {
@@ -279,7 +330,7 @@ public class FTPServerBackend {
                 userDirectory.mkdirs();
             }
             serverGUI.appendToConsole(getCurrentTime() + "Connection data saved to database: " + connection.getUsername());
-            return false; 
+            return false;
         } catch (SQLException e) {
             serverGUI.appendToConsole(getCurrentTime() + "SQL error saving connection: " + e.getMessage());
             return false;
