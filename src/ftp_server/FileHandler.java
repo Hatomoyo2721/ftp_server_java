@@ -58,8 +58,8 @@ public class FileHandler {
             serverGUI.appendToConsole("No file selected");
         }
     }
-
-    public static byte[] receiveFileToMemory(DataInputStream dataInputStream, DataOutputStream dataOutputStream,
+    
+    public static byte[] receiveFileToMemoryDirectly(DataInputStream dataInputStream, DataOutputStream dataOutputStream,
             String fileName, FTP_Server serverGUI) {
         byte[] buffer = new byte[BUFFER_SIZE];
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -77,24 +77,64 @@ public class FileHandler {
             }
 
             byte[] fileData = byteArrayOutputStream.toByteArray();
-            dataOutputStream.writeUTF("SUCCESS");
-            dataOutputStream.flush();
             return fileData;
 
         } catch (IOException e) {
             serverGUI.appendToConsole("Error receiving file: " + e.getMessage());
             e.printStackTrace();
-            try {
-                dataOutputStream.writeUTF("ERROR");
-                dataOutputStream.flush();
-            } catch (IOException ioException) {
-                ioException.printStackTrace();
-            }
             return null;
         }
     }
 
-    public static void saveFileFromMemory(byte[] fileData, File file, FTP_Server serverGUI) {
+    public static byte[] receiveFileToMemoryViaFolder(DataInputStream dataInputStream, DataOutputStream dataOutputStream,
+            String fileName, FTP_Server serverGUI) {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        int bytesRead;
+        long fileSize = 0;
+
+        try {
+//            fileSize = dataInputStream.readLong();
+//            serverGUI.appendToConsole("File size: " + convertFileSize(fileSize));
+
+//            while (fileSize > 0
+//                    && (bytesRead = dataInputStream.read(buffer, 0, (int) Math.min(buffer.length, fileSize))) != -1) {
+//                byteArrayOutputStream.write(buffer, 0, bytesRead);
+//                fileSize -= bytesRead;
+//            }
+            
+            bytesRead = dataInputStream.read(buffer, 0, buffer.length);
+            while (bytesRead != -1) {
+                serverGUI.appendToConsole("Receive total sofar: " + fileSize + " bytes");
+                byteArrayOutputStream.write(buffer);
+                fileSize += bytesRead;
+                bytesRead = dataInputStream.read(buffer, 0, buffer.length);
+                serverGUI.appendToConsole("After read: " + bytesRead);
+            }
+            
+            serverGUI.appendToConsole("Receive total: " + fileSize + " bytes");
+            byte[] fileData = byteArrayOutputStream.toByteArray();
+            return fileData;
+
+        } catch (IOException e) {
+            serverGUI.appendToConsole("Error receiving file: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public static void saveFileFromMemoryViaFolder(byte[] fileData, File file, FTP_Server serverGUI) {
+        try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
+            fileOutputStream.write(fileData);
+            fileOutputStream.flush();
+            serverGUI.appendToConsole("File saved successfully: " + file.getName() + "\n");
+        } catch (IOException e) {
+            serverGUI.appendToConsole("Error saving file: " + e.getMessage() + "\n");
+            e.printStackTrace();
+        }
+    }
+    
+    public static void saveFileFromMemoryDirectly(byte[] fileData, File file, FTP_Server serverGUI) {
         try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
             fileOutputStream.write(fileData);
             fileOutputStream.flush();

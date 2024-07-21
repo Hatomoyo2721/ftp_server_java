@@ -102,7 +102,7 @@ public class FTPServerBackend {
             case "RENAME_FILE":
                 handleRenameFile(dataInputStream, dataOutputStream, clientSocket);
                 break;
-            case "UPLOAD_FILE_TO_DIR_USER":
+            case "UPLOAD_FILE":
                 handleUploadFileToDirUser(dataInputStream, dataOutputStream, clientSocket);
                 break;
             case "DELETE_FILE_DIR_USER":
@@ -122,11 +122,11 @@ public class FTPServerBackend {
         serverGUI.appendToConsole(getCurrentTime() + "Receiving file: " + fileName
                 + "\nFrom: " + clientSocket.getInetAddress().getHostAddress());
 
-        byte[] fileData = FileHandler.receiveFileToMemory(dataInputStream, dataOutputStream, fileName, serverGUI);
+        byte[] fileData = FileHandler.receiveFileToMemoryDirectly(dataInputStream, dataOutputStream, fileName, serverGUI);
         if (fileData != null) {
             serverGUI.appendToConsole(getCurrentTime() + "File received. Saving to temp directory.");
             File tempFile = new File(tempDirectory, fileName);
-            FileHandler.saveFileFromMemory(fileData, tempFile, serverGUI);
+            FileHandler.saveFileFromMemoryDirectly(fileData, tempFile, serverGUI);
             serverGUI.addFileToList(fileName);
         }
     }
@@ -286,7 +286,7 @@ public class FTPServerBackend {
         dataOutputStream.writeUTF("READY_TO_RECEIVE");
         dataOutputStream.flush();
 
-        byte[] fileData = FileHandler.receiveFileToMemory(dataInputStream, dataOutputStream, fileName, serverGUI);
+        byte[] fileData = FileHandler.receiveFileToMemoryViaFolder(dataInputStream, dataOutputStream, fileName, serverGUI);
         if (fileData != null) {
             String userDirectoryPath = "users_directories/" + username;
             File userDirectory = new File(userDirectoryPath);
@@ -294,8 +294,8 @@ public class FTPServerBackend {
                 userDirectory.mkdirs();
             }
             File userFile = new File(userDirectory, fileName);
-            FileHandler.saveFileFromMemory(fileData, userFile, serverGUI);
-            serverGUI.appendToConsole(getCurrentTime() + "File received and saved to: " + userFile.getAbsolutePath());
+            FileHandler.saveFileFromMemoryViaFolder(fileData, userFile, serverGUI);
+            serverGUI.appendToConsole(getCurrentTime() + "File received and saved to: " + userFile);
 
             dataOutputStream.writeUTF("UPLOAD_SUCCESS");
             dataOutputStream.flush();
