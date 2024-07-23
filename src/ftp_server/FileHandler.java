@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 
 public class FileHandler {
 
@@ -87,6 +88,17 @@ public class FileHandler {
         }
     }
 
+    public static void saveFileFromMemoryDirectly(byte[] fileData, File file, FTP_Server serverGUI) {
+        try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
+            fileOutputStream.write(fileData);
+            fileOutputStream.flush();
+            serverGUI.appendToConsole("File saved successfully: " + file.getName() + "\n");
+        } catch (IOException e) {
+            serverGUI.appendToConsole("Error saving file: " + e.getMessage() + "\n");
+            e.printStackTrace();
+        }
+    }
+
     public static byte[] receiveFileToMemoryViaFolder(DataInputStream dataInputStream, DataOutputStream dataOutputStream,
             String fileName, FTP_Server serverGUI, long filesize) {
         byte[] buffer = new byte[BUFFER_SIZE];
@@ -125,17 +137,6 @@ public class FileHandler {
         }
     }
 
-    public static void saveFileFromMemoryDirectly(byte[] fileData, File file, FTP_Server serverGUI) {
-        try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
-            fileOutputStream.write(fileData);
-            fileOutputStream.flush();
-            serverGUI.appendToConsole("File saved successfully: " + file.getName() + "\n");
-        } catch (IOException e) {
-            serverGUI.appendToConsole("Error saving file: " + e.getMessage() + "\n");
-            e.printStackTrace();
-        }
-    }
-
     public static void deleteTempDirectory(File tempDirectory) {
         if (tempDirectory.isDirectory()) {
             for (File file : tempDirectory.listFiles()) {
@@ -160,8 +161,31 @@ public class FileHandler {
 
     private static void openFileExternally(File file, FTP_Server serverGUI) {
         try {
-            Desktop.getDesktop().open(file);
-            serverGUI.appendToConsole("Opening file: " + file.getName() + "\n");
+            String mimeType = Files.probeContentType(file.toPath());
+
+            if (mimeType == null) {
+                serverGUI.appendToConsole("Could not determine MimeType for file: " + file.getName() + "\n");
+                Desktop.getDesktop().open(file);
+                serverGUI.appendToConsole("Opening file with default application: " + file.getName() + "\n");
+            } else {
+                serverGUI.appendToConsole("Opening file with MimeType: " + mimeType + "\n");
+
+                if (Desktop.isDesktopSupported()) {
+                    Desktop desktop = Desktop.getDesktop();
+
+                    if (mimeType.startsWith("image")) {
+                        desktop.open(file);
+                    } else if (mimeType.startsWith("text")) {
+                        desktop.edit(file);
+                    } else if (mimeType.startsWith("audio") || mimeType.startsWith("video")) {
+                        desktop.open(file);
+                    } else {
+                        desktop.open(file);
+                    }
+                } else {
+                    serverGUI.appendToConsole("Desktop is not supported on this system\n");
+                }
+            }
         } catch (IOException e) {
             serverGUI.appendToConsole("Error opening file externally: " + e.getMessage() + "\n");
         }
