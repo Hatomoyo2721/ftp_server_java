@@ -4,6 +4,9 @@ import com.google.gson.Gson;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -131,9 +134,11 @@ public class FTPServerBackend {
         }
     }
 
+    /*==================*/
     private void handleAddUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
         String json = dataInputStream.readUTF();
         Connection_Model connection = new Gson().fromJson(json, Connection_Model.class);
+        connection.setPassword(hashPassword(connection.getPassword()));
         boolean userExists = saveConnectionToMySQL(connection);
         if (userExists) {
             dataOutputStream.writeUTF("USER_EXISTS");
@@ -149,15 +154,84 @@ public class FTPServerBackend {
         dataOutputStream.flush();
     }
 
-    private void handleReloadServer(Socket clientSocket) {
-        serverGUI.appendToConsole(getCurrentTime() + "Client requested to reload server: "
-                + clientSocket.getInetAddress().getHostAddress() + "\n");
+    private String hashPassword(String password) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encodedhash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
+            return bytesToHex(encodedhash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private void handleLoadDirectory(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
-        String username = dataInputStream.readUTF();
-        serverGUI.appendToConsole(getCurrentTime() + "User: " + username + " open directory");
-        sendDirectoryListToClient(username, dataOutputStream);
+    private static String bytesToHex(byte[] hash) {
+        StringBuilder hexString = new StringBuilder(2 * hash.length);
+        for (int i = 0; i < hash.length; i++) {
+            String hex = Integer.toHexString(0xff & hash[i]);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString();
+    }
+
+    private boolean saveConnectionToMySQL(Connection_Model connection) {
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); 
+                PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); 
+                PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections"
+                        + "(id, ip_address, port, username, password, email, creation_date) "
+                        + "VALUES(?,?,?,?,?,?,?)")) {
+            checkStmt.setString(1, connection.getUsername());
+            try (ResultSet rs = checkStmt.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    serverGUI.appendToConsole(getCurrentTime() + "User already exists: " + connection.getUsername() + "\n");
+                    return true;
+                }
+            }
+
+            insertStmt.setString(1, connection.getId());
+            insertStmt.setString(2, connection.getIpAddress());
+            insertStmt.setInt(3, connection.getPort());
+            insertStmt.setString(4, connection.getUsername());
+            insertStmt.setString(5, connection.getPassword());
+            insertStmt.setString(6, connection.getEmail());
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            String currentDate = dateFormat.format(new Date());
+            insertStmt.setString(7, currentDate);
+            insertStmt.executeUpdate();
+
+            File userDirectory = new File("users_directories/" + connection.getUsername());
+            if (!userDirectory.exists()) {
+                userDirectory.mkdirs();
+            }
+            serverGUI.appendToConsole(getCurrentTime() + "Connection data saved to database: " + connection.getUsername());
+            return false;
+        } catch (SQLException e) {
+            serverGUI.appendToConsole(getCurrentTime() + "SQL error saving connection: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /*==================*/
+    /*==================*/
+    private boolean queryExistingUser(Connection_Model exist_connection) {
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); 
+                PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ? AND password = ?")) {
+            
+            String hashedPassword = hashPassword(exist_connection.getPassword());
+            checkStmt.setString(1, exist_connection.getUsername());
+            checkStmt.setString(2, hashedPassword);
+
+            ResultSet rs = checkStmt.executeQuery();
+            rs.next();
+            int count = rs.getInt(1);
+            return count > 0;
+
+        } catch (SQLException e) {
+            serverGUI.appendToConsole(getCurrentTime() + "Error querying existing user in MySQL: " + e.getMessage() + "\n");
+            return false;
+        }
     }
 
     private void handleExistedConnection(DataInputStream dataInputStream, DataOutputStream dataOutputStream) throws IOException {
@@ -176,6 +250,18 @@ public class FTPServerBackend {
                     + exist_connection.getUsername() + "\n");
         }
         dataOutputStream.flush();
+    }
+
+    /*==================*/
+    private void handleReloadServer(Socket clientSocket) {
+        serverGUI.appendToConsole(getCurrentTime() + "Client requested to reload server: "
+                + clientSocket.getInetAddress().getHostAddress() + "\n");
+    }
+
+    private void handleLoadDirectory(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
+        String username = dataInputStream.readUTF();
+        serverGUI.appendToConsole(getCurrentTime() + "User: " + username + " open directory");
+        sendDirectoryListToClient(username, dataOutputStream);
     }
 
     private void handleRenameFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
@@ -233,7 +319,7 @@ public class FTPServerBackend {
     private void handleCreateNewDir(DataInputStream dataInputStream, DataOutputStream dataOutputStream) throws IOException {
         String parentDirName = dataInputStream.readUTF();
         String newDirName = dataInputStream.readUTF();
-        
+
         File parentDir = new File("users_directories/" + parentDirName);
         File newDir = new File(parentDir, newDirName);
 
@@ -280,13 +366,15 @@ public class FTPServerBackend {
     private void handleUploadFileToDirUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
         String fileName = dataInputStream.readUTF();
         String username = dataInputStream.readUTF();
+        Long filesize = dataInputStream.readLong();
+
         serverGUI.appendToConsole(getCurrentTime() + "Receiving file: " + fileName
                 + "\nFrom user: " + username);
 
         dataOutputStream.writeUTF("READY_TO_RECEIVE");
         dataOutputStream.flush();
 
-        byte[] fileData = FileHandler.receiveFileToMemoryViaFolder(dataInputStream, dataOutputStream, fileName, serverGUI);
+        byte[] fileData = FileHandler.receiveFileToMemoryViaFolder(dataInputStream, dataOutputStream, fileName, serverGUI, filesize);
         if (fileData != null) {
             String userDirectoryPath = "users_directories/" + username;
             File userDirectory = new File(userDirectoryPath);
@@ -328,55 +416,6 @@ public class FTPServerBackend {
             serverGUI.appendToConsole(getCurrentTime() + "User directory not found: " + username + "\n");
         }
         dataOutputStream.flush();
-    }
-
-    private boolean saveConnectionToMySQL(Connection_Model connection) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections(id, ip_address, port, username, password, email, creation_date) VALUES(?,?,?,?,?,?,?)")) {
-            checkStmt.setString(1, connection.getUsername());
-            try (ResultSet rs = checkStmt.executeQuery()) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    serverGUI.appendToConsole(getCurrentTime() + "User already exists: " + connection.getUsername() + "\n");
-                    return true;
-                }
-            }
-
-            insertStmt.setString(1, connection.getId());
-            insertStmt.setString(2, connection.getIpAddress());
-            insertStmt.setInt(3, connection.getPort());
-            insertStmt.setString(4, connection.getUsername());
-            insertStmt.setString(5, connection.getPassword());
-            insertStmt.setString(6, connection.getEmail());
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-            String currentDate = dateFormat.format(new Date());
-            insertStmt.setString(7, currentDate);
-            insertStmt.executeUpdate();
-
-            File userDirectory = new File("users_directories/" + connection.getUsername());
-            if (!userDirectory.exists()) {
-                userDirectory.mkdirs();
-            }
-            serverGUI.appendToConsole(getCurrentTime() + "Connection data saved to database: " + connection.getUsername());
-            return false;
-        } catch (SQLException e) {
-            serverGUI.appendToConsole(getCurrentTime() + "SQL error saving connection: " + e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean queryExistingUser(Connection_Model exist_connection) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ? AND password = ?")) {
-            checkStmt.setString(1, exist_connection.getUsername());
-            checkStmt.setString(2, exist_connection.getPassword());
-
-            ResultSet rs = checkStmt.executeQuery();
-            rs.next();
-            int count = rs.getInt(1);
-            return count > 0;
-
-        } catch (SQLException e) {
-            serverGUI.appendToConsole(getCurrentTime() + "Error querying existing user in MySQL: " + e.getMessage() + "\n");
-            return false;
-        }
     }
 
     private String getCurrentTime() {
