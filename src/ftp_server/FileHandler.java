@@ -3,6 +3,7 @@ package ftp_server;
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 
 public class FileHandler {
 
@@ -58,7 +59,7 @@ public class FileHandler {
             serverGUI.appendToConsole("No file selected");
         }
     }
-    
+
     public static byte[] receiveFileToMemoryDirectly(DataInputStream dataInputStream, DataOutputStream dataOutputStream,
             String fileName, FTP_Server serverGUI) {
         byte[] buffer = new byte[BUFFER_SIZE];
@@ -87,32 +88,22 @@ public class FileHandler {
     }
 
     public static byte[] receiveFileToMemoryViaFolder(DataInputStream dataInputStream, DataOutputStream dataOutputStream,
-            String fileName, FTP_Server serverGUI) {
+            String fileName, FTP_Server serverGUI, long filesize) {
         byte[] buffer = new byte[BUFFER_SIZE];
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         int bytesRead;
-        long fileSize = 0;
 
         try {
-//            fileSize = dataInputStream.readLong();
-//            serverGUI.appendToConsole("File size: " + convertFileSize(fileSize));
-
-//            while (fileSize > 0
-//                    && (bytesRead = dataInputStream.read(buffer, 0, (int) Math.min(buffer.length, fileSize))) != -1) {
-//                byteArrayOutputStream.write(buffer, 0, bytesRead);
-//                fileSize -= bytesRead;
-//            }
-            
-            bytesRead = dataInputStream.read(buffer, 0, buffer.length);
-            while (bytesRead != -1) {
-                serverGUI.appendToConsole("Receive total sofar: " + fileSize + " bytes");
-                byteArrayOutputStream.write(buffer);
-                fileSize += bytesRead;
-                bytesRead = dataInputStream.read(buffer, 0, buffer.length);
-                serverGUI.appendToConsole("After read: " + bytesRead);
+            while (filesize > 0
+                    && (bytesRead = dataInputStream.read(
+                            buffer, 0,
+                            (int) Math.min(buffer.length, filesize)))
+                    != -1) {
+                byteArrayOutputStream.write(buffer, 0, bytesRead);
+                filesize -= bytesRead;
+                serverGUI.appendToConsole("Receive bytesRead=" + bytesRead + " leftover=" + filesize);
             }
-            
-            serverGUI.appendToConsole("Receive total: " + fileSize + " bytes");
+
             byte[] fileData = byteArrayOutputStream.toByteArray();
             return fileData;
 
@@ -133,7 +124,7 @@ public class FileHandler {
             e.printStackTrace();
         }
     }
-    
+
     public static void saveFileFromMemoryDirectly(byte[] fileData, File file, FTP_Server serverGUI) {
         try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
             fileOutputStream.write(fileData);
@@ -187,6 +178,6 @@ public class FileHandler {
                 dataOutputStream.write(buffer, 0, bytesRead);
             }
         }
-        serverGUI.appendToConsole("File sent: " + file.getName() + "\nSize: " + convertFileSize(file.length()) + "\n");
+        serverGUI.appendToConsole("Client received and finished downloading: " + file.getName() + "\nSize: " + convertFileSize(file.length()) + "\n");
     }
 }
