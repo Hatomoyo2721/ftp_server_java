@@ -202,6 +202,7 @@ public class FileHandler {
                 dataOutputStream.write(buffer, 0, bytesRead);
             }
         }
-        serverGUI.appendToConsole("Client received and finished downloading: " + file.getName() + "\nSize: " + convertFileSize(file.length()) + "\n");
+        serverGUI.appendToConsole("Client received and finished downloading: " + file.getName() + "\nSize: " 
+                + convertFileSize(file.length()) + "\n");
     }
 }

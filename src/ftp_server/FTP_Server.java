@@ -130,10 +130,6 @@ public class FTP_Server extends JFrame {
         });
     }
 
-    public void appendToConsole(String message) {
-        SwingUtilities.invokeLater(() -> consoleTextArea.append(message + "\n"));
-    }
-
     private void openSelectedFile() {
         FileHandler.openSelectedFile(fileList, tempDirectory, this);
     }
@@ -149,6 +145,13 @@ public class FTP_Server extends JFrame {
     public boolean confirmSaveFile(String fileName) {
         return true; // Automatically save to temp directory
     }
+    
+    @Override
+    public void dispose() {
+        super.dispose();
+        serverBackend.stopServer();
+        FileHandler.deleteTempDirectory(tempDirectory);
+    }
 
     public static void main(String[] args) {
         FTP_Server serverGUI = new FTP_Server();
@@ -158,13 +161,6 @@ public class FTP_Server extends JFrame {
         });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> SwingUtilities.invokeLater(serverGUI::shutdownServer)));
-    }
-
-    @Override
-    public void dispose() {
-        super.dispose();
-        serverBackend.stopServer();
-        FileHandler.deleteTempDirectory(tempDirectory);
     }
 
     public void shutdownServer() {
@@ -178,6 +174,10 @@ public class FTP_Server extends JFrame {
                 initiateShutdown();
             }
         });
+    }
+    
+     public void appendToConsole(String message) {
+        SwingUtilities.invokeLater(() -> consoleTextArea.append(message + "\n"));
     }
 
     private void initiateShutdown() {

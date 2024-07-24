@@ -62,7 +62,8 @@ public class FTPServerBackend {
     }
 
     private void handleClientConnection(Socket clientSocket) {
-        try (DataInputStream dataInputStream = new DataInputStream(clientSocket.getInputStream()); DataOutputStream dataOutputStream = new DataOutputStream(clientSocket.getOutputStream())) {
+        try (DataInputStream dataInputStream = new DataInputStream(clientSocket.getInputStream()); 
+                DataOutputStream dataOutputStream = new DataOutputStream(clientSocket.getOutputStream())) {
             while (!serverSocket.isClosed()) {
                 try {
                     String type = dataInputStream.readUTF();
@@ -82,7 +83,8 @@ public class FTPServerBackend {
         }
     }
 
-    private void handleClientRequest(String type, DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
+    private void handleClientRequest(String type, DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket)
+            throws IOException {
         switch (type) {
             case "SEND_FILE":
                 handleSendFile(dataInputStream, dataOutputStream, clientSocket);
@@ -180,8 +182,8 @@ public class FTPServerBackend {
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); 
                 PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); 
                 PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections"
-                        + "(id, ip_address, port, username, password, email, creation_date) "
-                        + "VALUES(?,?,?,?,?,?,?)")) {
+                + "(id, ip_address, port, username, password, email, creation_date) "
+                + "VALUES(?,?,?,?,?,?,?)")) {
             checkStmt.setString(1, connection.getUsername());
             try (ResultSet rs = checkStmt.executeQuery()) {
                 if (rs.next() && rs.getInt(1) > 0) {
@@ -214,11 +216,12 @@ public class FTPServerBackend {
     }
 
     /*==================*/
-    /*==================*/
+ /*==================*/
     private boolean queryExistingUser(Connection_Model exist_connection) {
         try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); 
-                PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ? AND password = ?")) {
-            
+                            PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE "
+                + "username = ? AND password = ?")) {
+
             String hashedPassword = hashPassword(exist_connection.getPassword());
             checkStmt.setString(1, exist_connection.getUsername());
             checkStmt.setString(2, hashedPassword);
@@ -258,13 +261,8 @@ public class FTPServerBackend {
                 + clientSocket.getInetAddress().getHostAddress() + "\n");
     }
 
-    private void handleLoadDirectory(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
-        String username = dataInputStream.readUTF();
-        serverGUI.appendToConsole(getCurrentTime() + "User: " + username + " open directory");
-        sendDirectoryListToClient(username, dataOutputStream);
-    }
-
-    private void handleRenameFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
+    private void handleRenameFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) 
+            throws IOException {
         try {
             String currentFilePath = dataInputStream.readUTF();
             String newFileName = dataInputStream.readUTF();
@@ -339,7 +337,8 @@ public class FTPServerBackend {
         dataOutputStream.flush();
     }
 
-    private void handleDownloadFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
+    private void handleDownloadFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) 
+            throws IOException {
         String fileName = dataInputStream.readUTF();
         String json = dataInputStream.readUTF();
         Connection_Model connection = new Gson().fromJson(json, Connection_Model.class);
@@ -363,7 +362,8 @@ public class FTPServerBackend {
         dataOutputStream.flush();
     }
 
-    private void handleUploadFileToDirUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) throws IOException {
+    private void handleUploadFileToDirUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) 
+            throws IOException {
         String fileName = dataInputStream.readUTF();
         String username = dataInputStream.readUTF();
         Long filesize = dataInputStream.readLong();
@@ -392,6 +392,13 @@ public class FTPServerBackend {
         }
     }
 
+    private void handleLoadDirectory(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket)
+            throws IOException {
+        String username = dataInputStream.readUTF();
+        serverGUI.appendToConsole(getCurrentTime() + "User: " + username + " open directory");
+        sendDirectoryListToClient(username, dataOutputStream);
+    }
+
     private void sendDirectoryListToClient(String username, DataOutputStream dataOutputStream) throws IOException {
         File userDirectory = new File("users_directories/" + username);
         if (userDirectory.exists() && userDirectory.isDirectory()) {
@@ -402,7 +409,8 @@ public class FTPServerBackend {
                 ArrayList<FileModel> fileModels = new ArrayList<>();
                 for (File file : files) {
                     String filePath = file.getPath().replace("\\", "/");
-                    FileModel fileModel = new FileModel(file.getName(), file.isDirectory() ? FileModel.TYPE_DIRECTORY : FileModel.TYPE_FILE, filePath);
+                    FileModel fileModel = new FileModel(file.getName(), file.isDirectory() ? 
+                            FileModel.TYPE_DIRECTORY : FileModel.TYPE_FILE, filePath);
                     fileModels.add(fileModel);
                 }
                 dataOutputStream.writeUTF(new Gson().toJson(fileModels));

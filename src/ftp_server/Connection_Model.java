@@ -6,6 +6,7 @@ import java.util.Date;
 import java.util.Locale;
 
 public class Connection_Model {
+
     private String id;
     private String ipAddress;
     private int port;
@@ -41,7 +42,7 @@ public class Connection_Model {
     public String getPassword() {
         return password;
     }
-    
+
     public void setPassword(String password) {
         this.password = password;
     }
@@ -65,9 +66,5 @@ public class Connection_Model {
     private String generateId() {
         String uuid = java.util.UUID.randomUUID().toString();
         return uuid.substring(0, Math.min(uuid.length(), 10));
-    }
-
-    private String getCurrentDateTime() {
-        return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
     }
 }
