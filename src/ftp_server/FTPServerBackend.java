@@ -62,8 +62,7 @@ public class FTPServerBackend {
     }
 
     private void handleClientConnection(Socket clientSocket) {
-        try (DataInputStream dataInputStream = new DataInputStream(clientSocket.getInputStream()); 
-                DataOutputStream dataOutputStream = new DataOutputStream(clientSocket.getOutputStream())) {
+        try (DataInputStream dataInputStream = new DataInputStream(clientSocket.getInputStream()); DataOutputStream dataOutputStream = new DataOutputStream(clientSocket.getOutputStream())) {
             while (!serverSocket.isClosed()) {
                 try {
                     String type = dataInputStream.readUTF();
@@ -116,6 +115,12 @@ public class FTPServerBackend {
             case "CREATE_NEW_DIR":
                 handleCreateNewDir(dataInputStream, dataOutputStream);
                 break;
+            case "DELETE_DIR":
+                handleDeleteFolder(dataInputStream, dataOutputStream);
+                break;
+            case "RENAME_DIR":
+                handleRenameFolder(dataInputStream, dataOutputStream);
+                break;
 
             default:
                 serverGUI.appendToConsole(getCurrentTime() + "Unknown request from client. Closing connection.\n");
@@ -144,8 +149,7 @@ public class FTPServerBackend {
         boolean userExists = saveConnectionToMySQL(connection);
         if (userExists) {
             dataOutputStream.writeUTF("USER_EXISTS");
-            serverGUI.appendToConsole(
-                    getCurrentTime() + "Existed user: " + connection.getUsername() + "\n");
+            //
         } else {
             dataOutputStream.writeUTF("CONNECTION_SAVED");
             serverGUI.appendToConsole(getCurrentTime() + "Received connection details: \n"
@@ -179,15 +183,13 @@ public class FTPServerBackend {
     }
 
     private boolean saveConnectionToMySQL(Connection_Model connection) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); 
-                PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); 
-                PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections"
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE username = ?"); PreparedStatement insertStmt = conn.prepareStatement("INSERT INTO connections"
                 + "(id, ip_address, port, username, password, email, creation_date) "
                 + "VALUES(?,?,?,?,?,?,?)")) {
             checkStmt.setString(1, connection.getUsername());
             try (ResultSet rs = checkStmt.executeQuery()) {
                 if (rs.next() && rs.getInt(1) > 0) {
-                    serverGUI.appendToConsole(getCurrentTime() + "User already exists: " + connection.getUsername() + "\n");
+                    serverGUI.appendToConsole(getCurrentTime() + "Already existed user: " + connection.getUsername() + "\n");
                     return true;
                 }
             }
@@ -218,8 +220,7 @@ public class FTPServerBackend {
     /*==================*/
  /*==================*/
     private boolean queryExistingUser(Connection_Model exist_connection) {
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); 
-                            PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE "
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD); PreparedStatement checkStmt = conn.prepareStatement("SELECT COUNT(*) FROM connections WHERE "
                 + "username = ? AND password = ?")) {
 
             String hashedPassword = hashPassword(exist_connection.getPassword());
@@ -261,7 +262,7 @@ public class FTPServerBackend {
                 + clientSocket.getInetAddress().getHostAddress() + "\n");
     }
 
-    private void handleRenameFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) 
+    private void handleRenameFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket)
             throws IOException {
         try {
             String currentFilePath = dataInputStream.readUTF();
@@ -337,7 +338,7 @@ public class FTPServerBackend {
         dataOutputStream.flush();
     }
 
-    private void handleDownloadFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) 
+    private void handleDownloadFile(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket)
             throws IOException {
         String fileName = dataInputStream.readUTF();
         String json = dataInputStream.readUTF();
@@ -362,7 +363,7 @@ public class FTPServerBackend {
         dataOutputStream.flush();
     }
 
-    private void handleUploadFileToDirUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket) 
+    private void handleUploadFileToDirUser(DataInputStream dataInputStream, DataOutputStream dataOutputStream, Socket clientSocket)
             throws IOException {
         String fileName = dataInputStream.readUTF();
         String username = dataInputStream.readUTF();
@@ -409,8 +410,8 @@ public class FTPServerBackend {
                 ArrayList<FileModel> fileModels = new ArrayList<>();
                 for (File file : files) {
                     String filePath = file.getPath().replace("\\", "/");
-                    FileModel fileModel = new FileModel(file.getName(), file.isDirectory() ? 
-                            FileModel.TYPE_DIRECTORY : FileModel.TYPE_FILE, filePath);
+                    FileModel fileModel = new FileModel(file.getName(), file.isDirectory()
+                            ? FileModel.TYPE_DIRECTORY : FileModel.TYPE_FILE, filePath);
                     fileModels.add(fileModel);
                 }
                 dataOutputStream.writeUTF(new Gson().toJson(fileModels));
@@ -440,4 +441,75 @@ public class FTPServerBackend {
             serverGUI.appendToConsole(getCurrentTime() + "Error stopping server: " + e.getMessage() + "\n");
         }
     }
+
+    private void handleDeleteFolder(DataInputStream dataInputStream, DataOutputStream dataOutputStream) throws IOException {
+        try {
+            String folderPath = dataInputStream.readUTF();
+
+            File folder = new File(folderPath);
+
+            if (folder.exists() && folder.isDirectory()) {
+                boolean deleteSuccess = deleteDirectory(folder);
+
+                if (deleteSuccess) {
+                    dataOutputStream.writeUTF("DELETE_SUCCESS");
+                    serverGUI.appendToConsole(getCurrentTime() + "User deleted folder: " + folder.getName());
+                } else {
+                    dataOutputStream.writeUTF("DELETE_FAILED");
+                }
+            } else {
+                dataOutputStream.writeUTF("FOLDER_NOT_FOUND");
+            }
+
+            dataOutputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private boolean deleteDirectory(File directory) {
+        if (directory.isDirectory()) {
+            File[] files = directory.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    if (file.isDirectory()) {
+                        deleteDirectory(file);
+                    } else {
+                        file.delete();
+                    }
+                }
+            }
+        }
+        return directory.delete();
+    }
+
+    private void handleRenameFolder(DataInputStream dataInputStream, DataOutputStream dataOutputStream) throws IOException {
+        try {
+            String currentFolderPath = dataInputStream.readUTF();
+            String newFolderName = dataInputStream.readUTF();
+
+            File currentFolder = new File(currentFolderPath);
+
+            if (currentFolder.exists() && currentFolder.isDirectory()) {
+                String parentDir = currentFolder.getParent();
+                File newFolder = new File(parentDir, newFolderName);
+
+                boolean renameSuccess = currentFolder.renameTo(newFolder);
+
+                if (renameSuccess) {
+                    dataOutputStream.writeUTF("RENAME_SUCCESS");
+                    serverGUI.appendToConsole(getCurrentTime() + "User changed folder name: " + currentFolder.getName() + " -> " + newFolderName);
+                } else {
+                    dataOutputStream.writeUTF("RENAME_FAILED");
+                }
+            } else {
+                dataOutputStream.writeUTF("FOLDER_NOT_FOUND");
+            }
+
+            dataOutputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 }

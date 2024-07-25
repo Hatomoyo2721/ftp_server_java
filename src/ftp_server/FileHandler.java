@@ -113,7 +113,7 @@ public class FileHandler {
                     != -1) {
                 byteArrayOutputStream.write(buffer, 0, bytesRead);
                 filesize -= bytesRead;
-                serverGUI.appendToConsole("Receive bytesRead=" + bytesRead + " leftover=" + filesize);
+//                serverGUI.appendToConsole("Receive bytesRead=" + bytesRead + " leftover=" + filesize);
             }
 
             byte[] fileData = byteArrayOutputStream.toByteArray();
