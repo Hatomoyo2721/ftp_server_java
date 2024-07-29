@@ -8,8 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.*;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -120,6 +118,8 @@ public class FTPServerBackend {
                 break;
             case "RENAME_DIR":
                 handleRenameFolder(dataInputStream, dataOutputStream);
+                break;
+            case "LOAD_CHILD_DIR_RECURSIVE":
                 break;
 
             default:
